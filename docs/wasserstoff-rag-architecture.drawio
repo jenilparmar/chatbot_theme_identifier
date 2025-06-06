@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net">
+  <diagram name="Wasserstoff RAG Architecture" id="gEJkzv9rfhYbmWq9jQ2U">
+    <mxGraphModel dx="1075" dy="617" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Frontend -->
+        <mxCell id="frontend" value="Web Frontend (React/Streamlit)
+- Upload Docs
+- Ask Questions
+- Show Themes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0eaff;" vertex="1" parent="1">
+          <mxGeometry x="80" y="60" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- OCR Processor -->
+        <mxCell id="ocr" value="Document Processor (OCR)
+Tesseract / PaddleOCR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe5b4;" vertex="1" parent="1">
+          <mxGeometry x="340" y="60" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Embedding Generator -->
+        <mxCell id="embedder" value="Embedding Generator
+(OpenAI / LLaMA / Gemini)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffecd1;" vertex="1" parent="1">
+          <mxGeometry x="340" y="180" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Vector DB -->
+        <mxCell id="vectordb" value="Vector DB
+(Qdrant / ChromaDB / FAISS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6ffd6;" vertex="1" parent="1">
+          <mxGeometry x="340" y="300" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Retriever -->
+        <mxCell id="retriever" value="Retriever
+(Query ➝ Top-k Docs)
++ Citations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcd5ce;" vertex="1" parent="1">
+          <mxGeometry x="80" y="180" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- LLM Synthesizer -->
+        <mxCell id="llm" value="LLM Synthesizer
+Theme Summary + Citations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0bbff;" vertex="1" parent="1">
+          <mxGeometry x="80" y="300" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Backend -->
+        <mxCell id="backend" value="FastAPI Backend
+- Upload, Query APIs
+- Retrieval, OCR, Citation Mapping" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cccccc;" vertex="1" parent="1">
+          <mxGeometry x="80" y="420" width="460" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows -->
+        <mxCell id="arrow1" style="endArrow=block;html=1;" edge="1" parent="1" source="frontend" target="ocr">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow2" style="endArrow=block;html=1;" edge="1" parent="1" source="ocr" target="embedder">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow3" style="endArrow=block;html=1;" edge="1" parent="1" source="embedder" target="vectordb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow4" style="endArrow=block;html=1;" edge="1" parent="1" source="frontend" target="retriever">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow5" style="endArrow=block;html=1;" edge="1" parent="1" source="retriever" target="llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow6" style="endArrow=block;html=1;" edge="1" parent="1" source="llm" target="frontend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow7" style="endArrow=block;html=1;" edge="1" parent="1" source="vectordb" target="retriever">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

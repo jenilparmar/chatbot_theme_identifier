@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { io } from "socket.io-client";
 
 export default function Page() {
   const [pdfs, setPdfs] = useState([]);
@@ -9,6 +10,18 @@ export default function Page() {
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [extraText, setExtraText] = useState(""); // New state for extra text
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    socketRef.current = io("http://127.0.0.1:5000");
+    socketRef.current.on("chat_response", (data) => {
+      setResponse(data.response || "No answer available.");
+      // Optionally update chat history here
+    });
+    return () => {
+      socketRef.current.disconnect();
+    };
+  }, []);
 
   const handleUpload = async () => {
     if (!pdfs.length && !images.length && !extraText.trim()) {
@@ -43,21 +56,11 @@ export default function Page() {
     setLoading(false);
   };
 
-  const handleAsk = async () => {
+  const handleAsk = () => {
     if (!query.trim()) return;
     setLoading(true);
     setResponse("Generating answer...");
-    try {
-      const res = await fetch("http://127.0.0.1:5000/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-      const data = await res.json();
-      setResponse(data.response || "No answer available.");
-    } catch (err) {
-      setResponse("Failed to get response.");
-    }
+    socketRef.current.emit("chat_message", { query });
     setLoading(false);
   };
 

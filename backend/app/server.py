@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_socketio import SocketIO, emit
 import os
 import fitz  # PyMuPDF
 from werkzeug.utils import secure_filename
@@ -19,6 +20,7 @@ import google.generativeai as genai
 from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")  # Add this line
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -162,5 +164,42 @@ Question:
 
     return jsonify({"response": answer, "chat_history": chat_history})
 
+@socketio.on('chat_message')
+def handle_chat_message(data):
+    query = data.get("query", "")
+    if not query:
+        emit('chat_response', {"error": "Query required"})
+        return
+
+    best_score = float("inf")
+    best_context = []
+    best_docs = []
+
+    for single_db in dbs:
+        docs = single_db.similarity_search_with_score(query, k=2)
+        best_context.append("\n\n".join(doc.page_content for doc, _ in docs))
+
+    if not best_context:
+        emit('chat_response', {"response": "No relevant context found.", "chat_history": chat_history})
+        return
+
+    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question.
+
+Context:
+{best_context}
+
+Conversation:
+{chat_history}
+
+Question:
+{query}"""
+
+    response = model.generate_content(prompt)
+    answer = response.text
+
+    chat_history.append({"query": query, "response": answer})
+
+    emit('chat_response', {"response": answer, "chat_history": chat_history})
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True)

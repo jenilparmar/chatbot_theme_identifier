@@ -32,7 +32,7 @@ model = genai.GenerativeModel("gemini-2.0-flash")
 
 # Global chat history
 chat_history = []
-
+dbs=[]
 # Helper: Check if PDF is scanned
 def is_scanned_pdf(file_path):
     doc = fitz.open(file_path)
@@ -61,77 +61,90 @@ def extract_text_scanned_doc_from_stream(pdf_stream):
         print("1")
     return text_data
 
-def process_pdf_from_memory(file_storage):
+def process_pdf_from_memory_multiple(file_storages, text):
     global db
 
-    pdf_stream = io.BytesIO(file_storage.read())
-    doc = fitz.open(stream=pdf_stream, filetype="pdf")
+    for file_storage in file_storages:
+        all_docs = []
+        pdf_stream = io.BytesIO(file_storage.read())
+        doc = fitz.open(stream=pdf_stream, filetype="pdf")
 
-    is_scanned = True
-    docs = []
+        is_scanned = True
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            page_text = page.get_text()
+            if page_text.strip():
+                is_scanned = False
+                break
 
-    for page_num in range(len(doc)):
-        page = doc.load_page(page_num)
-        text = page.get_text()
-        if text.strip():
-            is_scanned = False
-            break
+        pdf_stream.seek(0)  # Reset stream to read again
 
-    pdf_stream.seek(0)  # Reset stream to read again
-
-    if is_scanned:
-        print("Processing as scanned PDF (OCR)...")
-        extracted = extract_text_scanned_doc_from_stream(pdf_stream)
-        data = text_splitter.split_text("".join(extracted.values()))
-        print(2)
-        docs = [Document(page_content=chunk) for chunk in data]
-    else:
-        print("Processing as typed PDF...")
-        doc = fitz.open(stream=pdf_stream, filetype="pdf")  # reload it
-        all_text = []
-        for page in doc:
-            all_text.append(page.get_text())
-        chunks = text_splitter.split_text("".join(all_text))
-        docs = [Document(page_content=chunk) for chunk in chunks]
-
-    db = FAISS.from_documents(documents=docs, embedding=embeddings)
-
-
+        if is_scanned:
+            print(f"Processing {file_storage.filename} as scanned PDF (OCR)...")
+            extracted = extract_text_scanned_doc_from_stream(pdf_stream)
+            data = text_splitter.split_text("".join(extracted.values()))
+            docs = [Document(page_content=chunk) for chunk in data]
+            all_docs.extend(docs)
+            
+        else:
+            print(f"Processing {file_storage.filename} as typed PDF...")
+            doc = fitz.open(stream=pdf_stream, filetype="pdf")  # reload it
+            all_text = []
+            for page in doc:
+                all_text.append(page.get_text())
+            chunks = text_splitter.split_text("".join(all_text))
+            docs = [Document(page_content=chunk) for chunk in chunks]
+            all_docs.extend(docs)
+        dbs.append(FAISS.from_documents(documents=all_docs, embedding=embeddings))
+    if text != "":
+        data = text_splitter.split_text(text)
+        docs_text = [Document(page_content=chunk) for chunk in data]
+        dbs.append(FAISS.from_documents(documents=docs_text, embedding=embeddings))
 
 # Endpoint: Upload PDF
 @app.route("/upload", methods=["POST"])
 def upload_pdf():
-    if "pdf" not in request.files:
-        return jsonify({"error": "No PDF uploaded"}), 400
+    files = request.files.getlist("pdf")
+    text = request.form.get("text", "")
+    # print(text)
+    if not files and not text.strip():
+        return jsonify({"error": "No PDF(s) or text uploaded"}), 400
 
-    file = request.files["pdf"]
-    process_pdf_from_memory(file)
+    process_pdf_from_memory_multiple(files, text=text)
+    return jsonify({"message": f"{len(files)} PDF(s) and text processed successfully."})
 
-    return jsonify({"message": "PDF processed successfully."})
-
-# Endpoint: Ask a question
 @app.route("/ask", methods=["POST"])
 def ask_question():
     query = request.json.get("query", "")
     if not query:
         return jsonify({"error": "Query required"}), 400
 
-    docs = db.similarity_search_with_score(query, k=2)
-    context_str = "\n\n".join(doc.page_content for doc, _ in docs)
+    best_score = float("inf")
+    best_context = []
+    best_docs = []
 
-    prompt = f"""pretend like you are a chatbot which takes context and query and you Answer using these verified sources(context):
+    for single_db in dbs:
+        docs = single_db.similarity_search_with_score(query, k=2)
+        
+        best_context.append("\n\n".join(doc.page_content for doc, _ in docs))
 
-Sources:
-{context_str}
-Your conversation:
+    if not best_context:
+        return jsonify({"response": "No relevant context found.", "chat_history": chat_history})
+
+    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question.
+
+Context:
+{best_context}
+
+Conversation:
 {chat_history}
+
 Question:
 {query}"""
 
     response = model.generate_content(prompt)
     answer = response.text
 
-    # Maintain chat history
     chat_history.append({"query": query, "response": answer})
 
     return jsonify({"response": answer, "chat_history": chat_history})

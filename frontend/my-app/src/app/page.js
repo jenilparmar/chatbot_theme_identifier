@@ -4,33 +4,39 @@ import { useState } from "react";
 
 export default function Page() {
   const [pdfs, setPdfs] = useState([]);
+  const [images, setImages] = useState([]); // New state for images
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [extraText, setExtraText] = useState(""); // New state for extra text
 
   const handleUpload = async () => {
-    if (!pdfs.length && !extraText.trim()) {
-      alert("Please select at least one PDF or enter some text to upload.");
+    if (!pdfs.length && !images.length && !extraText.trim()) {
+      alert(
+        "Please select at least one PDF, image, or enter some text to upload."
+      );
       return;
     }
     const formData = new FormData();
     for (let i = 0; i < pdfs.length; i++) {
       formData.append("pdf", pdfs[i]);
     }
+    for (let i = 0; i < images.length; i++) {
+      formData.append("image", images[i]);
+    }
     if (extraText.trim()) {
       formData.append("text", extraText);
     }
 
     setLoading(true);
-    setResponse("Uploading PDF(s) and text...");
+    setResponse("Uploading files and text...");
     try {
       const res = await fetch("http://127.0.0.1:5000/upload", {
         method: "POST",
         body: formData,
       });
       const data = await res.json();
-      setResponse(data.message || "PDF(s) and text uploaded successfully.");
+      setResponse(data.message || "Files and text uploaded successfully.");
     } catch (err) {
       setResponse("Upload failed.");
     }
@@ -63,7 +69,7 @@ export default function Page() {
 
       <section className="mb-8">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Upload PDF(s) and/or Enter Text
+          Upload PDF(s), Image(s), and/or Enter Text
         </label>
         <div className="flex items-center gap-4 mb-4">
           <input
@@ -78,9 +84,23 @@ export default function Page() {
               file:bg-blue-100 file:text-blue-700
               hover:file:bg-blue-200"
           />
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => setImages(Array.from(e.target.files))}
+            className="block w-full text-sm text-gray-900
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-md file:border-0
+              file:text-sm file:font-semibold
+              file:bg-green-100 file:text-green-700
+              hover:file:bg-green-200"
+          />
           <button
             onClick={handleUpload}
-            disabled={loading || (!pdfs.length && !extraText.trim())}
+            disabled={
+              loading || (!pdfs.length && !images.length && !extraText.trim())
+            }
             className="px-5 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
             Upload
           </button>
@@ -89,7 +109,7 @@ export default function Page() {
           rows={4}
           className="w-full border rounded-md p-3 resize-none mb-2
             focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Or type/paste a paragraph to upload with your PDFs..."
+          placeholder="Or type/paste a paragraph to upload with your files..."
           value={extraText}
           onChange={(e) => setExtraText(e.target.value)}
           disabled={loading}

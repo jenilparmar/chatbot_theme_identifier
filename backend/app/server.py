@@ -33,7 +33,13 @@ model = genai.GenerativeModel("gemini-2.0-flash")
 # Global chat history
 chat_history = []
 dbs=[]
+
+def extract_text_from_image_stream(image_stream):
+    image = Image.open(image_stream)
+    text = pytesseract.image_to_string(image, lang="eng")
+    return text
 # Helper: Check if PDF is scanned
+
 def is_scanned_pdf(file_path):
     doc = fitz.open(file_path)
     for page_num in range(len(doc)):
@@ -61,7 +67,7 @@ def extract_text_scanned_doc_from_stream(pdf_stream):
         print("1")
     return text_data
 
-def process_pdf_from_memory_multiple(file_storages, text):
+def process_pdf_from_memory_multiple(file_storages, text, image_storages):
     global db
 
     for file_storage in file_storages:
@@ -100,18 +106,25 @@ def process_pdf_from_memory_multiple(file_storages, text):
         data = text_splitter.split_text(text)
         docs_text = [Document(page_content=chunk) for chunk in data]
         dbs.append(FAISS.from_documents(documents=docs_text, embedding=embeddings))
+    for image_storage in image_storages:
+        image_stream = io.BytesIO(image_storage.read())
+        extracted_text = extract_text_from_image_stream(image_stream)
+        if extracted_text:
+            data = text_splitter.split_text(extracted_text)
+            docs = [Document(page_content=chunk) for chunk in data]
+            dbs.append(FAISS.from_documents(documents=docs, embedding=embeddings))
 
 # Endpoint: Upload PDF
 @app.route("/upload", methods=["POST"])
 def upload_pdf():
     files = request.files.getlist("pdf")
+    images = request.files.getlist("image")
     text = request.form.get("text", "")
-    # print(text)
-    if not files and not text.strip():
-        return jsonify({"error": "No PDF(s) or text uploaded"}), 400
+    if not files and not images and not text.strip():
+        return jsonify({"error": "No PDF(s), image(s), or text uploaded"}), 400
 
-    process_pdf_from_memory_multiple(files, text=text)
-    return jsonify({"message": f"{len(files)} PDF(s) and text processed successfully."})
+    process_pdf_from_memory_multiple(files, text=text, image_storages=images)
+    return jsonify({"message": f"{len(files)} PDF(s), {len(images)} image(s), and text processed successfully."})
 
 @app.route("/ask", methods=["POST"])
 def ask_question():

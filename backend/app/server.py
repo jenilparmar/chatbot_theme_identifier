@@ -83,7 +83,7 @@ def extract_text_scanned_doc_from_stream(pdf_stream):
         binary = cv2.adaptiveThreshold(im_bw, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
         cv2.imwrite("deno.jpg" , binary)
         text_data[page_num + 1] = pytesseract.image_to_string(binary, lang="eng")
-        print(text_data)
+        # print(text_data)
         # print("1")
     return text_data
 
@@ -195,15 +195,21 @@ def handle_chat_message(data):
         emit('chat_response', {"error": "Query required"})
         return
 
-    best_context = []
-    best_sources = []
+    all_results = []
 
     for single_db in dbs:
         docs = single_db.similarity_search_with_score(query, k=2)
-        # Collect both content and source metadata
         for doc, score in docs:
-            best_context.append(doc.page_content)
-            best_sources.append(doc.metadata)
+            all_results.append((doc, score))
+
+    # Sort all results by score (lower is better for similarity)
+    all_results.sort(key=lambda x: x[1])
+
+    # Take top 2
+    top_results = all_results[:2]
+
+    best_context = [doc.page_content for doc, _ in top_results]
+    best_sources = [doc.metadata for doc, _ in top_results]
 
     if not best_context:
         emit('chat_response', {"response": "No relevant context found.", "chat_history": chat_history})
@@ -228,7 +234,7 @@ Question:
     emit('chat_response', {
         "response": answer,
         "chat_history": chat_history,
-        "sources": best_sources  # Send sources to frontend
+        "sources": best_sources  # Only top 2 sources
     })
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 import os
-import fitz  # PyMuPDF
+import fitz 
 from werkzeug.utils import secure_filename
 
 from langchain.vectorstores import FAISS
@@ -88,8 +88,10 @@ def extract_text_scanned_doc_from_stream(pdf_stream):
     return text_data
 
 def process_pdf_from_memory_multiple(file_storages, text, image_storages):
-    global db
+    global dbs
+    dbs.clear()  # Clear previous DBs
 
+    # Process PDFs
     for file_storage in file_storages:
         all_docs = []
         pdf_stream = io.BytesIO(file_storage.read())
@@ -108,31 +110,70 @@ def process_pdf_from_memory_multiple(file_storages, text, image_storages):
         if is_scanned:
             print(f"Processing {file_storage.filename} as scanned PDF (OCR)...")
             extracted = extract_text_scanned_doc_from_stream(pdf_stream)
-            data = text_splitter.split_text("".join(extracted.values()))
-            docs = [Document(page_content=chunk) for chunk in data]
-            all_docs.extend(docs)
-            
+            # Add page number to metadata for each chunk
+            page_chunks = []
+            for page_num, text_on_page in extracted.items():
+                chunks = text_splitter.split_text(text_on_page)
+                page_chunks.extend([
+                    Document(
+                        page_content=chunk,
+                        metadata={
+                            "source": file_storage.filename,
+                            "type": "pdf_scanned",
+                            "page": page_num
+                        }
+                    ) for chunk in chunks
+                ])
+            all_docs.extend(page_chunks)
         else:
             print(f"Processing {file_storage.filename} as typed PDF...")
             doc = fitz.open(stream=pdf_stream, filetype="pdf")  # reload it
-            all_text = []
-            for page in doc:
-                all_text.append(page.get_text())
-            chunks = text_splitter.split_text("".join(all_text))
-            docs = [Document(page_content=chunk) for chunk in chunks]
-            all_docs.extend(docs)
+            for page_num, page in enumerate(doc):
+                page_text = page.get_text()
+                chunks = text_splitter.split_text(page_text)
+                all_docs.extend([
+                    Document(
+                        page_content=chunk,
+                        metadata={
+                            "source": file_storage.filename,
+                            "type": "pdf_typed",
+                            "page": page_num + 1  # 1-based page number
+                        }
+                    ) for chunk in chunks
+                ])
         dbs.append(FAISS.from_documents(documents=all_docs, embedding=embeddings))
+
+    # Process extra text
     if text != "":
         data = text_splitter.split_text(text)
-        docs_text = [Document(page_content=chunk) for chunk in data]
+        docs_text = [
+            Document(
+                page_content=chunk,
+                metadata={
+                    "source": "user_text",
+                    "type": "text"
+                }
+            ) for chunk in data
+        ]
         dbs.append(FAISS.from_documents(documents=docs_text, embedding=embeddings))
+
+    # Process images
     for image_storage in image_storages:
         image_stream = io.BytesIO(image_storage.read())
         extracted_text = extract_text_from_image_stream(image_stream)
         if extracted_text:
             data = text_splitter.split_text(extracted_text)
-            docs = [Document(page_content=chunk) for chunk in data]
+            docs = [
+                Document(
+                    page_content=chunk,
+                    metadata={
+                        "source": image_storage.filename,
+                        "type": "image"
+                    }
+                ) for chunk in data
+            ]
             dbs.append(FAISS.from_documents(documents=docs, embedding=embeddings))
+
 
 # Endpoint: Upload PDF
 @app.route("/upload", methods=["POST"])
@@ -146,41 +187,6 @@ def upload_pdf():
     process_pdf_from_memory_multiple(files, text=text, image_storages=images)
     return jsonify({"message": f"{len(files)} PDF(s), {len(images)} image(s), and text processed successfully."})
 
-@app.route("/ask", methods=["POST"])
-def ask_question():
-    query = request.json.get("query", "")
-    if not query:
-        return jsonify({"error": "Query required"}), 400
-
-    best_score = float("inf")
-    best_context = []
-    best_docs = []
-
-    for single_db in dbs:
-        docs = single_db.similarity_search_with_score(query, k=2)
-        
-        best_context.append("\n\n".join(doc.page_content for doc, _ in docs))
-
-    if not best_context:
-        return jsonify({"response": "No relevant context found.", "chat_history": chat_history})
-
-    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question.
-
-Context:
-{best_context}
-
-Conversation:
-{chat_history}
-
-Question:
-{query}"""
-
-    response = model.generate_content(prompt)
-    answer = response.text
-
-    chat_history.append({"query": query, "response": answer})
-
-    return jsonify({"response": answer, "chat_history": chat_history})
 
 @socketio.on('chat_message')
 def handle_chat_message(data):
@@ -189,13 +195,15 @@ def handle_chat_message(data):
         emit('chat_response', {"error": "Query required"})
         return
 
-    best_score = float("inf")
     best_context = []
-    best_docs = []
+    best_sources = []
 
     for single_db in dbs:
         docs = single_db.similarity_search_with_score(query, k=2)
-        best_context.append("\n\n".join(doc.page_content for doc, _ in docs))
+        # Collect both content and source metadata
+        for doc, score in docs:
+            best_context.append(doc.page_content)
+            best_sources.append(doc.metadata)
 
     if not best_context:
         emit('chat_response', {"response": "No relevant context found.", "chat_history": chat_history})
@@ -204,7 +212,7 @@ def handle_chat_message(data):
     prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question.
 
 Context:
-{best_context}
+{"".join(best_context)}
 
 Conversation:
 {chat_history}
@@ -216,8 +224,12 @@ Question:
     answer = response.text
 
     chat_history.append({"query": query, "response": answer})
-
-    emit('chat_response', {"response": answer, "chat_history": chat_history})
+    
+    emit('chat_response', {
+        "response": answer,
+        "chat_history": chat_history,
+        "sources": best_sources  # Send sources to frontend
+    })
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)

@@ -8,6 +8,7 @@ export default function Page() {
   const [images, setImages] = useState([]); // New state for images
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState("");
+  const [sources, setSources] = useState([]); // <-- NEW
   const [loading, setLoading] = useState(false);
   const [extraText, setExtraText] = useState(""); // New state for extra text
   const socketRef = useRef(null);
@@ -16,6 +17,7 @@ export default function Page() {
     socketRef.current = io("http://127.0.0.1:5000");
     socketRef.current.on("chat_response", (data) => {
       setResponse(data.response || "No answer available.");
+      setSources(data.sources || []); // <-- NEW
       // Optionally update chat history here
     });
     return () => {
@@ -144,6 +146,24 @@ export default function Page() {
         <section className="border rounded-md p-4 bg-black whitespace-pre-wrap">
           <strong className="block mb-2 text-white">Response:</strong>
           <p>{response}</p>
+          {sources.length > 0 && (
+            <div className="mt-4">
+              <strong className="text-white">Sources:</strong>
+              <ul className="list-disc ml-6 text-gray-300">
+                {sources.map((src, idx) => (
+                  <li key={idx}>
+                    {src.type === "pdf_scanned" || src.type === "pdf_typed"
+                      ? `PDF: ${src.source} , Page no: ${src['page']}`
+                      : src.type === "image"
+                      ? `Image: ${src.source}`
+                      : src.type === "text"
+                      ? "User Text"
+                      : src.source}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
     </main>

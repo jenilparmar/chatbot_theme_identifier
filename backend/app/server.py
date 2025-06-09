@@ -37,8 +37,23 @@ chat_history = []
 dbs=[]
 
 def extract_text_from_image_stream(image_stream):
-    image = Image.open(image_stream)
-    text = pytesseract.image_to_string(image, lang="eng")
+    
+    pil_image = Image.open(image_stream)
+    
+    image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.medianBlur(gray, 3)
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+ 
+  
+
+    # Optional debug save
+    cv2.imwrite("debug_preprocessed.jpg", binary)
+
+    # OCR
+    text = pytesseract.image_to_string(binary, lang="eng")
+
     return text
 # Helper: Check if PDF is scanned
 
@@ -63,10 +78,13 @@ def extract_text_scanned_doc_from_stream(pdf_stream):
         image = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.medianBlur(gray, 3)
         _, im_bw = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-        text_data[page_num + 1] = pytesseract.image_to_string(im_bw, lang="eng")
-        print("1")
+        binary = cv2.adaptiveThreshold(im_bw, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+        cv2.imwrite("deno.jpg" , binary)
+        text_data[page_num + 1] = pytesseract.image_to_string(binary, lang="eng")
+        print(text_data)
+        # print("1")
     return text_data
 
 def process_pdf_from_memory_multiple(file_storages, text, image_storages):

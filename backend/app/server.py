@@ -213,7 +213,7 @@ def handle_chat_message(data):
     all_results = []
 
     for single_db in dbs:
-        docs = single_db.similarity_search_with_score(query, k=2)
+        docs = single_db.similarity_search_with_score(query, k=1)
         for doc, score in docs:
             all_results.append((doc, score))
 
@@ -249,7 +249,8 @@ Question:
     emit('chat_response', {
         "response": answer,
         "chat_history": chat_history,
-        "sources": best_sources  # Only top 2 sources
+        "sources": best_sources ,
+        "context":best_context
     })
 
 if __name__ == "__main__":

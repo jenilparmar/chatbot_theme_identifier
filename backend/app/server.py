@@ -215,7 +215,8 @@ def handle_chat_message(data):
     for single_db in dbs:
         docs = single_db.similarity_search_with_score(query, k=1)
         for doc, score in docs:
-            all_results.append((doc, score))
+            if score<1:
+                all_results.append((doc, score))
 
     # Sort all results by score (lower is better for similarity)
     all_results.sort(key=lambda x: x[1])
@@ -226,11 +227,11 @@ def handle_chat_message(data):
     best_context = [doc.page_content for doc, _ in top_results]
     best_sources = [doc.metadata for doc, _ in top_results]
 
-    if not best_context:
+    if len(best_context)==0:
         emit('chat_response', {"response": "No relevant context found.", "chat_history": chat_history})
         return
 
-    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question.
+    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question. be a little elaborative. and format the answer good.
 
 Context:
 {"".join(best_context)}

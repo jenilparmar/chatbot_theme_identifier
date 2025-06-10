@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-
+import ReactMarkdown from 'react-markdown';
 function GeminiLoader() {
   return (
     <div className="flex flex-col items-center justify-center py-8">
@@ -31,6 +31,7 @@ export default function Page() {
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [context, setContext] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState({});
+  const [answer, setAnswer] = useState("");
   const socketRef = useRef(null);
   useEffect(() => {
     console.log(sources);
@@ -38,9 +39,10 @@ export default function Page() {
   useEffect(() => {
     socketRef.current = io("http://127.0.0.1:5000");
     socketRef.current.on("chat_response", (data) => {
-      setResponse(data.response || "No answer available.");
+      setAnswer(data.response || "No answer available.");
       setContext(data.context || []);
       setSources(data.sources || []);
+      setLoading(false); // <-- Move here!
     });
     return () => {
       socketRef.current.disconnect();
@@ -79,6 +81,7 @@ export default function Page() {
       const data = await res.json();
       setResponse(data.message || "Files and text uploaded successfully.");
     } catch (err) {
+      // alert("Your Upload failed please upload agian!!")
       setResponse("Upload failed.");
     }
     setLoading(false);
@@ -89,7 +92,8 @@ export default function Page() {
     setLoading(true);
     setResponse("Generating answer...");
     socketRef.current.emit("chat_message", { query });
-    setLoading(false);
+    setResponse("Generated Answer")
+    // Do NOT setLoading(false) here!
   };
 
   const allFiles = [
@@ -205,116 +209,117 @@ export default function Page() {
 
             {loading ? (
               <GeminiLoader />
-            ) : (
-              response ? (
-                <section className="bg-white rounded-lg p-6 shadow-md whitespace-pre-wrap">
-                  {sources.length > 0 && (
-                    <div className="mt-4">
-                  <strong className="block mb-4 text-xl font-semibold text-gray-800">
-                    Response:
-                  </strong>
-                      <table className="min-w-full mb-6 border border-gray-200 rounded-lg overflow-hidden">
-                        <thead className="bg-blue-600 text-white">
-                          <tr>
-                            <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold">
-                              Document ID
-                            </th>
-                            <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold">
-                              Extracted Result
-                            </th>
-                            <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold">
-                              Citation
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sources.map((src, idx) => (
-                            <tr
-                              key={idx}
-                              className={`${
-                                idx % 2 === 0 ? "bg-gray-50" : "bg-white"
-                              } hover:bg-blue-50 transition-colors`}>
-                              <td className="border border-gray-200 px-4 py-2 text-gray-700">
-                                {src.source ? src.source : "N/A"}
-                              </td>
-                              <td
-                                className={`border border-gray-200 px-4 py-2 text-gray-700 cursor-pointer transition-all duration-200`}
-                                style={{
-                                  maxWidth:
-                                    expandedIdx === idx ? "600px" : "200px",
-                                  whiteSpace:
-                                    expandedIdx === idx ? "pre-wrap" : "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow:
-                                    expandedIdx === idx ? "unset" : "ellipsis",
-                                  background:
-                                    expandedIdx === idx ? "#e0f2fe" : "inherit",
-                                  borderRadius:
-                                    expandedIdx === idx ? "0.5rem" : "0",
-                                }}
-                                title={context[idx]}
-                                onClick={() =>
-                                  setExpandedIdx(
-                                    expandedIdx === idx ? null : idx
-                                  )
-                                }>
-                                {context[idx]
-                                  ? expandedIdx === idx
-                                    ? context[idx]
-                                    : context[idx].length > 80
-                                    ? context[idx].slice(0, 80) + "…"
-                                    : context[idx]
-                                  : "N/A"}
-                                {context[idx] && (
-                                  <span className="ml-2 text-xs text-blue-500">
-                                    {expandedIdx === idx
-                                      ? "[Click to collapse]"
-                                      : "[Click to expand]"}
-                                  </span>
-                                )}
-                              </td>
-                              <td
-                                className="border border-gray-200 px-4 py-2 text-blue-600 hover:underline cursor-pointer"
-                                onClick={() => {
-                                  if (
-                                    src.type === "pdf_scanned" ||
-                                    src.type === "pdf_typed"
-                                  ) {
-                                    setPdfPage(parseInt(src["page"]));
-                                    for (let f of allFiles) {
-                                      if (f.file["name"] === src.source) {
-                                        setActiveFile({
-                                          file: f.file,
-                                          type: "pdf",
-                                        });
-                                      }
+            ) : response ? (
+              <section className="bg-white rounded-lg p-6 shadow-md whitespace-pre-wrap">
+                {response}
+                {sources.length > 0 && (
+                  <div className="mt-4">
+                    <table className="min-w-full mb-6 border border-gray-200 rounded-lg overflow-hidden">
+                      <thead className="bg-blue-600 text-white">
+                        <tr>
+                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold">
+                            Document ID
+                          </th>
+                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold">
+                            Extracted Result
+                          </th>
+                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-semibold">
+                            Citation
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sources.map((src, idx) => (
+                          <tr
+                            key={idx}
+                            className={`${
+                              idx % 2 === 0 ? "bg-gray-50" : "bg-white"
+                            } hover:bg-blue-50 transition-colors`}>
+                            <td className="border border-gray-200 px-4 py-2 text-gray-700">
+                              {src.source ? src.source : "N/A"}
+                            </td>
+                            <td
+                              className={`border border-gray-200 px-4 py-2 text-gray-700 cursor-pointer transition-all duration-200`}
+                              style={{
+                                maxWidth:
+                                  expandedIdx === idx ? "600px" : "200px",
+                                whiteSpace:
+                                  expandedIdx === idx ? "pre-wrap" : "nowrap",
+                                overflow: "hidden",
+                                textOverflow:
+                                  expandedIdx === idx ? "unset" : "ellipsis",
+                                background:
+                                  expandedIdx === idx ? "#e0f2fe" : "inherit",
+                                borderRadius:
+                                  expandedIdx === idx ? "0.5rem" : "0",
+                              }}
+                              title={context[idx]}
+                              onClick={() =>
+                                setExpandedIdx(expandedIdx === idx ? null : idx)
+                              }>
+                              {context[idx]
+                                ? expandedIdx === idx
+                                  ? context[idx]
+                                  : context[idx].length > 80
+                                  ? context[idx].slice(0, 80) + "…"
+                                  : context[idx]
+                                : "N/A"}
+                              {context[idx] && (
+                                <span className="ml-2 text-xs text-blue-500">
+                                  {expandedIdx === idx
+                                    ? "[Click to collapse]"
+                                    : "[Click to expand]"}
+                                </span>
+                              )}
+                            </td>
+                            <td
+                              className="border border-gray-200 px-4 py-2 text-blue-600 hover:underline cursor-pointer"
+                              onClick={() => {
+                                if (
+                                  src.type === "pdf_scanned" ||
+                                  src.type === "pdf_typed"
+                                ) {
+                                  setPdfPage(parseInt(src["page"]));
+                                  for (let f of allFiles) {
+                                    if (f.file["name"] === src.source) {
+                                      setActiveFile({
+                                        file: f.file,
+                                        type: "pdf",
+                                      });
                                     }
                                   }
-                                }}>
-                                {src.type === "pdf_scanned" ||
-                                src.type === "pdf_typed"
-                                  ? `Page ${src.page || "?"}`
-                                  : src.type === "image"
-                                  ? `Image: ${src.source}`
-                                  : src.type === "text"
-                                  ? "User Text"
-                                  : src.source}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <strong className="block mb-3 text-lg font-medium text-gray-800">
-                        Answer
-                      </strong>
-                      <div className="mt-2 p-4 bg-blue-100 rounded-lg shadow-sm text-gray-800">
-                        {response}
-                      </div>
+                                }
+                              }}>
+                              {src.type === "pdf_scanned" ||
+                              src.type === "pdf_typed"
+                                ? `Page ${src.page || "?"}`
+                                : src.type === "image"
+                                ? `Image: ${src.source}`
+                                : src.type === "text"
+                                ? "User Text"
+                                : src.source}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <strong className="block mb-3 text-lg font-medium text-gray-800">
+                      Answer
+                    </strong>
+                    <div className="mt-2 p-4 bg-blue-100 rounded-lg shadow-sm text-gray-800">
+                    <ReactMarkdown>
+
+                      {answer}
+                    </ReactMarkdown>
                     </div>
-                  )}
-                </section>
-              ):<>
-              <p className="text-center w-full text-blue-600 font-semibold animate-pulse">Ask Anything!!</p>
+                  </div>
+                )}
+              </section>
+            ) : (
+              <>
+                <p className="text-center w-full text-blue-600 font-semibold animate-pulse">
+                  Ask Anything!!
+                </p>
               </>
             )}
 

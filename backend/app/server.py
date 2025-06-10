@@ -23,16 +23,34 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")  # Add this line
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+from sentence_transformers import SentenceTransformer
 
-# Configure embeddings and model
-embeddings = HuggingFaceEmbeddings()
+sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
+class SBERTEmbeddings:
+    def __init__(self, model):
+        self.model = model
+
+    def embed_documents(self, texts):
+        return self.model.encode(texts, convert_to_tensor=False)
+
+    def embed_query(self, text):
+        return self.model.encode([text])[0]
+
+    def __call__(self, text):
+        return self.embed_query(text)  
+
+from sentence_transformers import SentenceTransformer
+
+sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
+embeddings = SBERTEmbeddings(sbert_model)
+
+
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, add_start_index=True)
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 genai.configure(api_key="AIzaSyBH6hVJYI6XHlIdmeYcBn4UlPmUWL233aU")
 model = genai.GenerativeModel("gemini-2.0-flash")
 
-# Global chat history
 chat_history = []
 dbs=[]
 
@@ -48,14 +66,11 @@ def extract_text_from_image_stream(image_stream):
  
   
 
-    # Optional debug save
-    cv2.imwrite("debug_preprocessed.jpg", binary)
-
-    # OCR
+   
     text = pytesseract.image_to_string(binary, lang="eng")
 
     return text
-# Helper: Check if PDF is scanned
+
 
 def is_scanned_pdf(file_path):
     doc = fitz.open(file_path)
@@ -206,7 +221,7 @@ def handle_chat_message(data):
     all_results.sort(key=lambda x: x[1])
 
     # Take top 2
-    top_results = all_results[:2]
+    top_results = all_results
 
     best_context = [doc.page_content for doc, _ in top_results]
     best_sources = [doc.metadata for doc, _ in top_results]

@@ -45,7 +45,7 @@ sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
 embeddings = SBERTEmbeddings(sbert_model)
 
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, add_start_index=True)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=300, add_start_index=True)
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 genai.configure(api_key="AIzaSyBH6hVJYI6XHlIdmeYcBn4UlPmUWL233aU")

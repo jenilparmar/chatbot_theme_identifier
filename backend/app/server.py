@@ -5,7 +5,7 @@ import fitz
 from werkzeug.utils import secure_filename
 
 from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
+# from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
@@ -231,7 +231,7 @@ def handle_chat_message(data):
         emit('chat_response', {"response": "No relevant context found.", "chat_history": chat_history})
         return
 
-    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question. be a little elaborative. and format the answer good.
+    prompt = f"""You are a helpful assistant. Use the following context and conversation to answer the question.format the answer good.
 
 Context:
 {"".join(best_context)}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from "react-markdown";
+import { FaPlayCircle, FaPauseCircle, FaStopCircle } from "react-icons/fa";
 function GeminiLoader() {
   return (
     <div className="flex flex-col items-center justify-center py-8">
@@ -32,6 +33,8 @@ export default function Page() {
   const [context, setContext] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState({});
   const [answer, setAnswer] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const socketRef = useRef(null);
   useEffect(() => {
     console.log(sources);
@@ -49,6 +52,31 @@ export default function Page() {
     };
   }, []);
 
+  const handleReadAloud = (text) => {
+    if (!text) return;
+    window.speechSynthesis.cancel(); // Stop any ongoing speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US"; // You can change this to "es-ES", "fr-FR", etc.
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onpause = () => setIsPaused(true);
+    utterance.onresume = () => setIsPaused(false);
+    setIsSpeaking(true);
+    setIsPaused(false);
+    window.speechSynthesis.speak(utterance);
+  };
+  const handlePause = () => {
+    window.speechSynthesis.pause();
+    setIsPaused(true);
+  };
+  const handleResume = () => {
+    window.speechSynthesis.resume();
+    setIsPaused(false);
+  };
+  const handleStop = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    setIsPaused(false);
+  };
   const handleUpload = async () => {
     // Filter files based on selection
     const selectedPdfs = pdfs.filter((f) => selectedFiles[f.name] ?? true);
@@ -92,7 +120,7 @@ export default function Page() {
     setLoading(true);
     setResponse("Generating answer...");
     socketRef.current.emit("chat_message", { query });
-    setResponse("Generated Answer")
+    setResponse("Generated Answer");
     // Do NOT setLoading(false) here!
   };
 
@@ -303,14 +331,43 @@ export default function Page() {
                         ))}
                       </tbody>
                     </table>
-                    <strong className="block mb-3 text-lg font-medium text-gray-800">
-                      Answer
-                    </strong>
+                    <div className="flex flex-row w-full items-center gap-3 mb-2">
+                      <strong className="block text-lg font-medium text-gray-800">
+                        Answer
+                      </strong>
+                      {!isSpeaking ? (
+                        <button
+                          className="hover:scale-105 active:scale-95 text-blue-600"
+                          title="Play"
+                          onClick={() => answer && handleReadAloud(answer)}>
+                          <FaPlayCircle className="text-2xl" />
+                        </button>
+                      ) : isPaused ? (
+                        <button
+                          className="hover:scale-105 active:scale-95 text-green-600"
+                          title="Resume"
+                          onClick={handleResume}>
+                          <FaPlayCircle className="text-2xl" />
+                        </button>
+                      ) : (
+                        <button
+                          className="hover:scale-105 active:scale-95 text-yellow-500"
+                          title="Pause"
+                          onClick={handlePause}>
+                          <FaPauseCircle className="text-2xl" />
+                        </button>
+                      )}
+                      {isSpeaking && (
+                        <button
+                          className="hover:scale-105 active:scale-95 text-red-600"
+                          title="Stop"
+                          onClick={handleStop}>
+                          <FaStopCircle className="text-2xl" />
+                        </button>
+                      )}
+                    </div>
                     <div className="mt-2 p-4 bg-blue-100 rounded-lg shadow-sm text-gray-800">
-                    <ReactMarkdown>
-
-                      {answer}
-                    </ReactMarkdown>
+                      <ReactMarkdown>{answer}</ReactMarkdown>
                     </div>
                   </div>
                 )}

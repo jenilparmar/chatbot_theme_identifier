@@ -19,6 +19,17 @@ function GeminiLoader() {
   );
 }
 
+const MAX_FILE_SIZE_MB = 4;
+const MAX_PDF_PAGES = 20;
+const BATCH_SIZE = 10;
+// Helper to check PDF page count
+const getPdfPageCount = async (file) => {
+  const arrayBuffer = await file.arrayBuffer();
+  // Use PDF.js or a lightweight library for page count, or skip this check if not feasible in browser
+  // For now, just skip and rely on backend for page count enforcement
+  return null;
+};
+
 export default function Page() {
   const [pdfs, setPdfs] = useState([]);
   const [images, setImages] = useState([]);
@@ -77,6 +88,29 @@ export default function Page() {
     setIsSpeaking(false);
     setIsPaused(false);
   };
+  const handlePdfChange = async (e) => {
+    const files = Array.from(e.target.files);
+    for (let file of files) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        alert(`File "${file.name}" exceeds 4MB limit.`);
+        return;
+      }
+      // Optionally, check page count here if you use PDF.js in frontend
+    }
+    setPdfs(files);
+  };
+
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    for (let file of files) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        alert(`File "${file.name}" exceeds 4MB limit.`);
+        return;
+      }
+    }
+    setImages(files);
+  };
+
   const handleUpload = async () => {
     // Filter files based on selection
     const selectedPdfs = pdfs.filter((f) => selectedFiles[f.name] ?? true);
@@ -88,30 +122,41 @@ export default function Page() {
       );
       return;
     }
-    const formData = new FormData();
-    for (let i = 0; i < selectedPdfs.length; i++) {
-      formData.append("pdf", selectedPdfs[i]);
-    }
-    for (let i = 0; i < selectedImages.length; i++) {
-      formData.append("image", selectedImages[i]);
-    }
-    if (extraText.trim()) {
-      formData.append("text", extraText);
-    }
+
+    // Combine all files with type info for batching
+    const allSelected = [
+      ...selectedPdfs.map((f) => ({ file: f, type: "pdf" })),
+      ...selectedImages.map((f) => ({ file: f, type: "image" })),
+    ];
 
     setLoading(true);
-    setResponse("Uploading files and text...");
-    try {
-      const res = await fetch("http://127.0.0.1:5000/upload", {
-        method: "POST",
-        body: formData,
+
+    for (let i = 0; i < allSelected.length; i += BATCH_SIZE) {
+      const batch = allSelected.slice(i, i + BATCH_SIZE);
+      const formData = new FormData();
+      batch.forEach(({ file, type }) => {
+        formData.append(type, file);
       });
-      const data = await res.json();
-      setResponse(data.message || "Files and text uploaded successfully.");
-    } catch (err) {
-      // alert("Your Upload failed please upload agian!!")
-      setResponse("Upload failed.");
+      // Only add text in the first batch
+      if (i === 0 && extraText.trim()) {
+        formData.append("text", extraText);
+      }
+      try {
+        setResponse(`Uploading batch ${Math.floor(i / BATCH_SIZE) + 1}...`);
+        const res = await fetch("http://127.0.0.1:5000/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Batch upload failed");
+        // Optionally handle response data here
+      } catch (err) {
+        setResponse(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed.`);
+        setLoading(false);
+        return;
+      }
     }
+
+    setResponse("All files uploaded successfully.");
     setLoading(false);
   };
 
@@ -203,14 +248,14 @@ export default function Page() {
                   type="file"
                   accept="application/pdf"
                   multiple
-                  onChange={(e) => setPdfs(Array.from(e.target.files))}
+                  onChange={handlePdfChange}
                   className="block text-sm text-gray-900 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
                 />
                 <input
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => setImages(Array.from(e.target.files))}
+                  onChange={handleImageChange}
                   className="block text-sm text-gray-900 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-green-100 file:text-green-700 hover:file:bg-green-200"
                 />
               </div>

@@ -9,7 +9,7 @@ from langchain.vectorstores import FAISS
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=300, add_start_index=True)
 
 from sentence_transformers import SentenceTransformer
-dbs = []
+
 sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
 class SBERTEmbeddings:
     def __init__(self, model):
@@ -68,10 +68,8 @@ def extract_text_from_image_stream(image_stream , pytesseract):
 
 
 
-def process_pdf_from_memory_multiple(file_storages, text, image_storages , pytesseract ):
-    global dbs
-    dbs.clear()  # Clear previous DBs
-
+def process_pdf_from_memory_multiple(file_storages, text, image_storages , pytesseract, dbs ):
+ 
     # Process PDFs
     for file_storage in file_storages:
         all_docs = []

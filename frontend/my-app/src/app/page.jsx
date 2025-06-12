@@ -47,9 +47,26 @@ export default function Page() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const socketRef = useRef(null);
-  useEffect(() => {
-    console.log(sources);
-  }, []);
+useEffect(() => {
+  // Clear backend DBs on every refresh/mount
+  fetch("http://127.0.0.1:5000/clear_db")
+    .then(() => {
+      setPdfs([]);
+      setImages([]);
+      setSelectedFiles({});
+      setActiveFile(null);
+      setSources([]);
+      setContext([]);
+      setAnswer("");
+      setResponse("");
+      setQuery("");
+      setExtraText("");
+      setPdfPage(0);
+    })
+    .catch(() => {
+      // Optionally handle error
+    });
+}, []);
   useEffect(() => {
     socketRef.current = io("http://127.0.0.1:5000");
     socketRef.current.on("chat_response", (data) => {
@@ -123,13 +140,36 @@ export default function Page() {
       return;
     }
 
+    setLoading(true);
+
+    // If only text is present, upload it directly
+    if (!selectedPdfs.length && !selectedImages.length && extraText.trim()) {
+      const formData = new FormData();
+      formData.append("text", extraText);
+      try {
+        setResponse("Uploading text...");
+        const res = await fetch("http://127.0.0.1:5000/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Text upload failed");
+        let data = await res.json();
+        setResponse(data.message);
+        console.log(data.message);
+      } catch (err) {
+        setResponse("Text upload failed.");
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+      return;
+    }
+
     // Combine all files with type info for batching
     const allSelected = [
       ...selectedPdfs.map((f) => ({ file: f, type: "pdf" })),
       ...selectedImages.map((f) => ({ file: f, type: "image" })),
     ];
-
-    setLoading(true);
 
     for (let i = 0; i < allSelected.length; i += BATCH_SIZE) {
       const batch = allSelected.slice(i, i + BATCH_SIZE);
@@ -148,7 +188,9 @@ export default function Page() {
           body: formData,
         });
         if (!res.ok) throw new Error("Batch upload failed");
-        // Optionally handle response data here
+        let data = await res.json();
+        setResponse(data.message);
+        console.log(data.message);
       } catch (err) {
         setResponse(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed.`);
         setLoading(false);
@@ -156,7 +198,6 @@ export default function Page() {
       }
     }
 
-    setResponse("All files uploaded successfully.");
     setLoading(false);
   };
 

@@ -1,2 +1,5 @@
 .venv
 *.pdf
+*.jpg
+demo
+*.zip
